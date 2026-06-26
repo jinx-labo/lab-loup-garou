@@ -13,18 +13,202 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       min-height: 100vh;
       text-align: center;
+      padding: 2rem 1rem;
+      box-sizing: border-box;
     }
-    h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-    p { color: #c9b896; max-width: 32rem; line-height: 1.5; }
+    h1 { font-size: 2.5rem; margin: 0.5rem 0 0.25rem; }
+    p.intro { color: #c9b896; max-width: 32rem; line-height: 1.5; }
     .moon { font-size: 4rem; }
+    .card {
+      background: #241b14;
+      border: 1px solid #3a2c1e;
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-width: 32rem;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 1rem auto;
+    }
+    label { display: block; text-align: left; color: #c9b896; margin-bottom: 0.4rem; font-size: 0.9rem; }
+    textarea, input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #1a1410;
+      color: #f5e6c8;
+      border: 1px solid #4a3a28;
+      border-radius: 8px;
+      padding: 0.6rem;
+      font-family: inherit;
+      font-size: 1rem;
+    }
+    textarea { min-height: 6rem; resize: vertical; }
+    .row { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-top: 0.75rem; }
+    .row > div { flex: 1; min-width: 8rem; }
+    button {
+      background: #8a3324;
+      color: #f5e6c8;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7rem 1.1rem;
+      font-size: 1rem;
+      font-family: inherit;
+      cursor: pointer;
+      margin: 0.4rem 0.25rem;
+    }
+    button:hover { background: #a33d2b; }
+    button.secondary { background: #3a2c1e; }
+    button.secondary:hover { background: #4a3a28; }
+    .players { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+    .player {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1a1410;
+      border: 1px solid #3a2c1e;
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+    }
+    .player .name { font-weight: 600; }
+    .player .role { color: #c9b896; font-size: 0.95rem; }
+    .player .role.hidden { color: #6b5840; font-style: italic; }
+    .player button { margin: 0; padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+    .wolf { color: #e8896f; }
+    .villager { color: #9fcf8a; }
+    .hint { color: #6b5840; font-size: 0.8rem; margin-top: 0.5rem; }
+    .error { color: #e8896f; font-size: 0.9rem; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
   <div class="moon">🌕🐺</div>
   <h1>Loup-Garou</h1>
-  <p>Le village s'endort... Bientôt une partie complète. Pour l'instant, la page d'accueil du lab.</p>
+  <p class="intro">Le village s'endort... Entrez les joueurs, répartissez les rôles, puis chacun révèle le sien en secret.</p>
+
+  <div class="card">
+    <label for="names">Noms des joueurs (un par ligne)</label>
+    <textarea id="names" placeholder="Alice&#10;Bob&#10;Chloé&#10;David"></textarea>
+    <div class="row">
+      <div>
+        <label for="wolves">Nombre de loups</label>
+        <input type="number" id="wolves" min="1" value="1">
+      </div>
+      <div>
+        <button id="deal">🎲 Répartir les rôles</button>
+      </div>
+    </div>
+    <div id="error" class="error"></div>
+    <div class="hint">Astuce : passez le téléphone à chaque joueur pour qu'il révèle son rôle, puis masquez-le avant de le passer au suivant.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div id="players" class="players"></div>
+    <button id="reset" class="secondary">↺ Recommencer</button>
+  </div>
+
+  <div class="card">
+    <p class="intro" style="margin-top:0">Inviter d'autres personnes à jouer</p>
+    <a id="smsLink" href="#"><button>📲 Partager par SMS</button></a>
+    <div class="hint">Ouvre l'app de messages avec une invitation pré-remplie à compléter.</div>
+  </div>
+
+  <script>
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    const namesEl = document.getElementById('names');
+    const wolvesEl = document.getElementById('wolves');
+    const errorEl = document.getElementById('error');
+    const resultCard = document.getElementById('resultCard');
+    const playersEl = document.getElementById('players');
+
+    document.getElementById('deal').addEventListener('click', deal);
+    document.getElementById('reset').addEventListener('click', () => {
+      resultCard.style.display = 'none';
+      playersEl.innerHTML = '';
+    });
+
+    function deal() {
+      errorEl.textContent = '';
+      const names = namesEl.value
+        .split('\n')
+        .map(n => n.trim())
+        .filter(n => n.length > 0);
+      const wolves = parseInt(wolvesEl.value, 10) || 0;
+
+      if (names.length < 3) {
+        errorEl.textContent = 'Il faut au moins 3 joueurs.';
+        return;
+      }
+      if (wolves < 1) {
+        errorEl.textContent = 'Il faut au moins 1 loup.';
+        return;
+      }
+      if (wolves >= names.length) {
+        errorEl.textContent = 'Il faut plus de villageois que de loups.';
+        return;
+      }
+
+      const roles = [];
+      for (let i = 0; i < wolves; i++) roles.push('Loup-Garou');
+      while (roles.length < names.length) roles.push('Villageois');
+      shuffle(roles);
+
+      playersEl.innerHTML = '';
+      names.forEach((name, i) => {
+        const role = roles[i];
+        const div = document.createElement('div');
+        div.className = 'player';
+
+        const left = document.createElement('span');
+        left.className = 'name';
+        left.textContent = name;
+
+        const right = document.createElement('span');
+        right.className = 'role hidden';
+        right.textContent = '🔒 caché';
+
+        const btn = document.createElement('button');
+        btn.className = 'secondary';
+        btn.textContent = 'Révéler';
+        let revealed = false;
+        btn.addEventListener('click', () => {
+          revealed = !revealed;
+          if (revealed) {
+            right.className = 'role ' + (role === 'Loup-Garou' ? 'wolf' : 'villager');
+            right.textContent = (role === 'Loup-Garou' ? '🐺 ' : '👤 ') + role;
+            btn.textContent = 'Masquer';
+          } else {
+            right.className = 'role hidden';
+            right.textContent = '🔒 caché';
+            btn.textContent = 'Révéler';
+          }
+        });
+
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.alignItems = 'center';
+        wrap.style.gap = '0.6rem';
+        wrap.appendChild(right);
+        wrap.appendChild(btn);
+
+        div.appendChild(left);
+        div.appendChild(wrap);
+        playersEl.appendChild(div);
+      });
+
+      resultCard.style.display = 'block';
+      resultCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Lien SMS d'invitation pré-rempli
+    const smsText = "🐺 Viens jouer au Loup-Garou avec nous ! Rejoins ici : " + window.location.href;
+    document.getElementById('smsLink').setAttribute('href', 'sms:?&body=' + encodeURIComponent(smsText));
+  </script>
 </body>
 </html>
